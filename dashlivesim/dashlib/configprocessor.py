@@ -65,6 +65,7 @@ class Config(object):
         self.media_presentation_duration = None
         self.timeshift_buffer_depth_in_s = None
         self.minimum_update_period_in_s = None
+        self.chunk_duration_in_ms = None
         self.modulo_period = None
         self.last_segment_numbers = [] # The last segment number in every period.
         self.init_seg_avail_offset = 0 # The number of secs before AST that one can fetch the init segments

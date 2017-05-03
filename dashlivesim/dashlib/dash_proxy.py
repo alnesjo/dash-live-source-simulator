@@ -69,9 +69,11 @@ from .initsegmentfilter import InitLiveFilter
 from .mediasegmentfilter import MediaSegmentFilter
 from . import segmentmuxer
 from . import mpdprocessor
+from . import chunker
 from .timeformatconversions import make_timestamp, seconds_to_iso_duration
 from .configprocessor import ConfigProcessor
 from xml.etree import ElementTree as ET
+
 
 SECS_IN_DAY = 24 * 3600
 DEFAULT_MINIMUM_UPDATE_PERIOD = "P100Y"
@@ -315,6 +317,8 @@ class DashProvider(object):
         cfg_processor = ConfigProcessor(self.vod_conf_dir, self.base_url)
         cfg_processor.process_url(self.url_parts, self.now)
         cfg = cfg_processor.getconfig()
+        cfg.chunk_duration_in_ms = 100 # TODO
+        # cfg.availability_time_offset_in_s = cfg.seg_duration - cfg.chunk_duration_in_ms
         if cfg.ext == ".mpd" or cfg.ext == ".period":
             if cfg.ext == ".period":
                 mpd_filename = "%s/%s/%s" % (self.content_dir, cfg.content_name, cfg.filename.split('+')[0])
@@ -513,4 +517,9 @@ class DashProvider(object):
                                         scte35_per_minute, rel_path, is_ttml)
         seg_content = seg_filter.filter()
         self.new_tfdt_value = seg_filter.get_tfdt_value()
+
+        if cfg.chunk_duration_in_ms is not None:
+            chunk_duration = int(cfg.chunk_duration_in_ms * 0.001 * timescale)
+            seg_content = chunker.chunk(seg_content, chunk_duration).serialize()
+
         return seg_content
