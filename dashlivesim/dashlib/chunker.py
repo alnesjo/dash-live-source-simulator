@@ -1,6 +1,7 @@
-
 from repack_poc.ewmedia.mp4 import mp4
 from repack_poc.ewmedia.esf.boxes import *
+
+import pdb
 
 
 def decode_fragment(data):
@@ -11,12 +12,14 @@ def decode_fragment(data):
     root = mp4(data)
     moof = root.find('moof')
     tfhd = moof.find('traf.tfhd')
+    tfdt = moof.find('traf.tfdt')
     trun = moof.find('traf.trun')
 
     base_data_offset = tfhd.base_data_offset if tfhd.has_base_data_offset else moof.offset
     data_offset = trun.data_offset if trun.has_data_offset else 0
+    base_media_decode_time = tfdt.decode_time
 
-    t0, t1 = 0, 0
+    t0, t1 = base_media_decode_time, base_media_decode_time
     begin, end = 0, 0
     for i in range(trun.sample_count):
         entry = trun.sample_entry(i)
@@ -24,7 +27,7 @@ def decode_fragment(data):
         data = root.raw_data[base_data_offset+data_offset:][begin:end]
         duration = entry['duration']
         t0, t1 = t1, t1 + duration
-        time_offset = entry['time_offset']
+        time_offset = entry['time_offset'] if trun.has_sample_composition_time_offset else 0
         sync = int(entry['flags'],0) & 0x2000000
         yield Sample(data, t0, duration, sync, time_offset)
 
@@ -39,15 +42,17 @@ def partition(samples, duration):
             part = []
         d0 += sample.duration
         part.append(sample)
+    if part:
+        yield part
 
 
 def encode_chunked(seqno, track_id, samples, duration):
     for chunk_samples in partition(samples, duration):
         yield create_moof(seqno, track_id, chunk_samples, None)
-        yield create_mdat(samples)
+        yield create_mdat(chunk_samples)
 
 
-def chunk(data, duration=MOVIE_TIMESCALE):
+def chunk(data, duration):
     """
     :param data: CMAF Fragment
     :param duration: Target chunk duration
@@ -60,14 +65,16 @@ def chunk(data, duration=MOVIE_TIMESCALE):
     seqno = mfhd.seqno
     track_id = tfhd.track_id
 
-    return BoxSequence(create_styp(),
-                       *encode_chunked(seqno,
-                                       track_id,
-                                       decode_fragment(data),
-                                       duration))
+    chunked = BoxSequence(create_styp(),
+                          *encode_chunked(seqno,
+                                          track_id,
+                                          decode_fragment(data),
+                                          duration))
+    #pdb.set_trace()
+    return chunked
 
 
 def chunk_file(input,output,duration):
     data = open(input, 'rb').read()
-    chunked = chunk(data, duration)
+    chunked = chunk(data, duration).serialize()
     open(output, 'wb').write(chunked)
