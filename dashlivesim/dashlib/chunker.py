@@ -65,16 +65,13 @@ def chunk(data, duration):
     seqno = mfhd.seqno
     track_id = tfhd.track_id
 
-    chunked = BoxSequence(create_styp(),
-                          *encode_chunked(seqno,
-                                          track_id,
-                                          decode_fragment(data),
-                                          duration))
-    #pdb.set_trace()
-    return chunked
+    yield create_styp().serialize()
+    for chunk in encode_chunked(seqno, track_id, decode_fragment(data), duration):
+        yield chunk.serialize()
 
 
 def chunk_file(input,output,duration):
     data = open(input, 'rb').read()
-    chunked = chunk(data, duration).serialize()
-    open(output, 'wb').write(chunked)
+    with open(output, 'wb') as o:
+        for c in chunk(data, duration):
+            o.write(c)

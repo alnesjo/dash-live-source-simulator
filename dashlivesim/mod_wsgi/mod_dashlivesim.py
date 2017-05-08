@@ -38,6 +38,7 @@ from os.path import splitext
 from time import time
 from dashlivesim.dashlib import dash_proxy
 
+
 # Helper for HTTP responses
 #pylint: disable=dangerous-default-value
 def reply(code, resp, body='', headers={}):
@@ -94,8 +95,8 @@ def application(environment, start_response):
     payload_in = None
 
     try:
-        response = dash_proxy.handle_request(hostname, path_parts[1:], args, vod_conf_dir, content_root, now, None,
-                                             is_https)
+        response = sum(dash_proxy.handle_request(hostname, path_parts[1:], args, vod_conf_dir, content_root, now, None,
+                                                 is_https))
         if isinstance(response, basestring):
             payload_in = response
             if not payload_in:
@@ -103,7 +104,6 @@ def application(environment, start_response):
         else:
             if not response['ok']:
                 success = False
-
             payload_in = response['pl']
 
     #pylint: disable=broad-except
@@ -111,7 +111,6 @@ def application(environment, start_response):
         success = False
         print "mod_dash_handler request error: %s" % exc
         payload_in = "DASH Proxy Error: %s\n URL=%s" % (exc, url)
-
 
     if not success:
         if payload_in == "":
@@ -127,18 +126,20 @@ def application(environment, start_response):
     payload_out = payload_in
 
     # Setup response headers
-    headers = {'Content-Type':mimetype}
+    headers = {'Content-Type': mimetype}
 
     if status != httplib.NOT_FOUND:
         if range_line:
             payload_out, range_out = handle_byte_range(payload_in, range_line)
-            if range_out != "": # OK
+            if range_out != "":  # OK
                 headers['Content-Range'] = range_out
                 status = httplib.PARTIAL_CONTENT
-            else: # Bad range, drop it
+            else:  # Bad range, drop it
                 print "mod_dash_handler: Bad range %s" % (range_line)
 
     return reply(status, start_response, payload_out, headers)
+
+
 
 def get_mime_type(ext):
     "Get mime-type depending on extension."
@@ -183,9 +184,34 @@ def handle_byte_range(payload, range_line):
     range_response = "bytes %d-%d/%d" % (range_start, range_end, len(payload))
     return (ranged_payload, range_response)
 
+
+def chunked_application(environment, start_response):
+    hostname = environment['HTTP_HOST']
+    url = environment['REQUEST_URI']
+    vod_conf_dir = environment['VOD_CONF_DIR']
+    content_root = environment['CONTENT_ROOT']
+    is_https = environment.get('HTTPS', 0)
+    path_parts = url.split('/')
+    ext = splitext(path_parts[-1])[1]
+    args = None
+    now = time()
+    start_response('200 OK', [('Content-Type', get_mime_type(ext)),
+                              ('Accept-Ranges', 'bytes'),
+                              ('Cache-Control', 'no-cache'),
+                              ('Expires', '-1'),
+                              ('DASH-Live-Simulator', SERVER_AGENT),
+                              ('Access-Control-Allow-Headers', 'origin,range,accept-encoding,referer'),
+                              ('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS'),
+                              ('Access-Control-Allow-Origin', '*'),
+                              ('Access-Control-Expose-Headers', 'Server,range,Content-Length,Content-Range,Date')])
+    for chunk in dash_proxy.handle_request(hostname, path_parts[1:], args, vod_conf_dir, content_root, now, None,
+                                           is_https):
+        yield chunk
+
 #
 # Local wsgi server for testing
 #
+
 
 def main():
     "Run stand-alone wsgi server for testing."
@@ -199,13 +225,12 @@ def main():
     parser.add_argument("--port", dest="port", type=int, help="IPv4 port", default=8059)
     args = parser.parse_args()
 
-
     def application_wrapper(env, resp):
         "Wrapper around application for local webserver."
         env['REQUEST_URI'] = env['PATH_INFO'] # Set REQUEST_URI from PATH_INFO
         env['VOD_CONF_DIR'] = args.vod_conf_dir
         env['CONTENT_ROOT'] = args.content_dir
-        return application(env, resp)
+        return chunked_application(env, resp)
 
     def run_local_webserver(wrapper, host, port):
         "Local webserver."

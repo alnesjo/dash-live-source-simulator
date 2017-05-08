@@ -276,7 +276,7 @@ class ConfigProcessor(object):
 
     url_cfg_keys = ("start", "ast", "dur", "init", "tsbd", "mup", "modulo", "tfdt", "cont",
                     "periods", "xlink", "etp", "etpDuration", "insertad", "mpdcallback", "continuous", "segtimeline", "baseurl",
-                    "peroff", "scte35", "utc", "snr", "ato")
+                    "peroff", "scte35", "utc", "snr", "ato", "chunkdur")
 
     def __init__(self, vod_cfg_dir, base_url):
         self.vod_cfg_dir = vod_cfg_dir
@@ -368,6 +368,13 @@ class ConfigProcessor(object):
                 cfg.utc_timing_methods = value.split("-")
             elif key == "snr": # Segment startNumber
                 cfg.start_nr = self.interpret_start_nr(value)
+            elif key == "chunkdur":  # Chunk duration
+                try:
+                    chunk_duration = float(value)
+                    if chunk_duration > 0:
+                        cfg.chunk_duration_in_s = chunk_duration
+                except ValueError:
+                    pass
             elif key == "ato": #availabilityTimeOffset
                 if value == "inf":
                     cfg.availability_time_offset_in_s = -1 #signal that the value is infinite
