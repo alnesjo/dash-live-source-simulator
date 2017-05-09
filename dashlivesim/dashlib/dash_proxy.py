@@ -283,6 +283,22 @@ def insert_asset_identifier(response, start_pos_period):
     return response
 
 
+def simulate_continuous_production(segment, first_chunk_available, chunk_duration):
+    from time import time, sleep
+    chunks = list(segment)
+    remaining = len(chunks)
+    sent = [False] * remaining
+    while 0 < remaining:
+        now_float = time()
+        for i, chunk in enumerate(chunks):
+            if not sent[i] and now_float > first_chunk_available + i * chunk_duration:
+                sent[i] = True
+                remaining -= 1
+                # print('Sent a chunk')
+                yield chunk
+        sleep(chunk_duration/2)
+
+
 class DashProvider(object):
     "Provide DASH manifest and segments."
 
@@ -501,8 +517,6 @@ class DashProvider(object):
         if nr_reps == 1:  # Not muxed
             segment = self.filter_media_segment(cfg, cfg.reps[0], rel_path, vod_nr, seg_nr, seg_ext,
                                                 offset_at_loop_start, lmsg)
-            for chunk in segment:
-                yield chunk
         else:
             rel_path_parts = rel_path.split("/")
             common_path_parts = rel_path_parts[:-1]
@@ -512,9 +526,10 @@ class DashProvider(object):
                                              offset_at_loop_start, lmsg)
             seg2 = self.filter_media_segment(cfg, cfg.reps[1], rel_path2, vod_nr, seg_nr, seg_ext,
                                              offset_at_loop_start, lmsg)
-            for chu1, chu2 in zip(seg1, seg2):
-                muxed = segmentmuxer.MultiplexMediaSegments(data1=chu1, data2=chu2)
-                yield muxed.mux_on_sample_level()
+            segment = (segmentmuxer.MultiplexMediaSegments(data1=chu1, data2=chu2).mux_on_sample_level() for chu1, chu2 in zip(seg1, seg2))
+        for chunk in simulate_continuous_production(segment, seg_ast - cfg.availability_time_offset_in_s,
+                                                    cfg.chunk_duration_in_s):
+            yield chunk
 
     # pylint: disable=too-many-arguments
     def filter_media_segment(self, cfg, rep, rel_path, vod_nr, seg_nr, seg_ext, offset_at_loop_start, lmsg):
