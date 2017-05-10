@@ -65,9 +65,9 @@ def chunk(data, duration):
     seqno = mfhd.seqno
     track_id = tfhd.track_id
 
-    yield create_styp().serialize()
-    for chunk in encode_chunked(seqno, track_id, decode_fragment(data), duration):
-        yield chunk.serialize()
+    boxes = encode_chunked(seqno, track_id, decode_fragment(data), duration)
+    for moof, mdat in zip(boxes, boxes):
+        yield moof.serialize()+mdat.serialize()
 
 
 def chunk_file(input,output,duration):

@@ -283,21 +283,16 @@ def insert_asset_identifier(response, start_pos_period):
     return response
 
 
-def simulate_continuous_production(segment, first_chunk_available, chunk_duration):
+def simulate_continuous_production(segment, start_time, chunk_duration):
     from time import time, sleep
-    chunks = list(segment)
-    remaining = len(chunks)
-    sent = [False] * remaining
-    while 0 < remaining:
-        now_float = time()
-        for i, chunk in enumerate(chunks):
-            if not sent[i] and now_float > first_chunk_available + i * chunk_duration:
-                sent[i] = True
-                remaining -= 1
-                # print('Sent a chunk')
-                yield chunk
-        sleep(chunk_duration/2)
-
+    segment_duration = 6
+    segment = list(segment)
+    for i, chunk in enumerate(segment, start=1):
+        time_until_available = (start_time + i * chunk_duration) - time()
+        if time_until_available > 0:
+            print('Waiting for %d ms before yielding chunk' % round(time_until_available * 1000))
+            sleep(time_until_available)
+        yield chunk
 
 class DashProvider(object):
     "Provide DASH manifest and segments."
@@ -334,8 +329,6 @@ class DashProvider(object):
         cfg_processor = ConfigProcessor(self.vod_conf_dir, self.base_url)
         cfg_processor.process_url(self.url_parts, self.now)
         cfg = cfg_processor.getconfig()
-        cfg.chunk_duration_in_s = 1 # TODO configure in URL
-        # cfg.availability_time_offset_in_s = cfg.seg_duration - cfg.chunk_duration_in_ms
         if cfg.ext == ".mpd" or cfg.ext == ".period":
             if cfg.ext == ".period":
                 mpd_filename = "%s/%s/%s" % (self.content_dir, cfg.content_name, cfg.filename.split('+')[0])
@@ -527,8 +520,7 @@ class DashProvider(object):
             seg2 = self.filter_media_segment(cfg, cfg.reps[1], rel_path2, vod_nr, seg_nr, seg_ext,
                                              offset_at_loop_start, lmsg)
             segment = (segmentmuxer.MultiplexMediaSegments(data1=chu1, data2=chu2).mux_on_sample_level() for chu1, chu2 in zip(seg1, seg2))
-        for chunk in simulate_continuous_production(segment, seg_ast - cfg.availability_time_offset_in_s,
-                                                    cfg.chunk_duration_in_s):
+        for chunk in simulate_continuous_production(segment, seg_time, cfg.chunk_duration_in_s or seg_dur):
             yield chunk
 
     # pylint: disable=too-many-arguments
