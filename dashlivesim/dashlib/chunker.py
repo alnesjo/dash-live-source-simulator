@@ -68,10 +68,3 @@ def chunk(data, duration):
     boxes = encode_chunked(seqno, track_id, decode_fragment(data), duration)
     for moof, mdat in zip(boxes, boxes):
         yield moof.serialize()+mdat.serialize()
-
-
-def chunk_file(input,output,duration):
-    data = open(input, 'rb').read()
-    with open(output, 'wb') as o:
-        for c in chunk(data, duration):
-            o.write(c)
