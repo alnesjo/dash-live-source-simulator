@@ -284,15 +284,15 @@ def insert_asset_identifier(response, start_pos_period):
 
 
 def simulate_continuous_production(segment, start_time, chunk_duration):
+    from sys import stderr
     from time import time, sleep
-    segment_duration = 6
-    segment = list(segment)
     for i, chunk in enumerate(segment, start=1):
         time_until_available = (start_time + i * chunk_duration) - time()
         if time_until_available > 0:
-            print('Waiting for %d ms before yielding chunk' % round(time_until_available * 1000))
             sleep(time_until_available)
         yield chunk
+        print >> stderr, 'chunk'
+
 
 class DashProvider(object):
     "Provide DASH manifest and segments."
