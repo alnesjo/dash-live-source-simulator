@@ -289,9 +289,9 @@ def simulate_continuous_production(segment, start_time, chunk_duration):
     for i, chunk in enumerate(segment, start=1):
         time_until_available = (start_time + i * chunk_duration) - time()
         if time_until_available > 0:
+            print >> stderr, 'Waiting for %d ms before sending chunk.' % (1000*time_until_available)
             sleep(time_until_available)
         yield chunk
-        print >> stderr, 'chunk'
 
 
 class DashProvider(object):
@@ -418,6 +418,8 @@ class DashProvider(object):
         mpd_data['maxSegmentDuration'] = 'PT%dS' % in_data['segDuration']
         mpd_data['presentationTimeOffset'] = 0
         mpd_data['availabilityTimeOffset'] = '%f' % in_data['availability_time_offset_in_s']
+        if not cfg.availability_time_complete:
+            mpd_data['availabilityTimeComplete'] = 'false'
         if in_data.has_key('availabilityEndTime'):
             mpd_data['availabilityEndTime'] = make_timestamp(in_data['availabilityEndTime'])
         mpd_proc_cfg = {'scte35Present': (cfg.scte35_per_minute > 0),

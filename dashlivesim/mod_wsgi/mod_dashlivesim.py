@@ -1,3 +1,4 @@
+from sys import stderr
 from dashlivesim import SERVER_AGENT
 from os.path import splitext
 from time import time
