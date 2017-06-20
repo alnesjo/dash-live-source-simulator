@@ -1,8 +1,9 @@
-from sys import stderr
+import sys
+sys.stdout = sys.stderr
 from dashlivesim import SERVER_AGENT
 from os.path import splitext
 from time import time
-from dashlivesim.dashlib import dash_proxy
+from dashlivesim.dashlib.dash_proxy import handle_request
 from collections import defaultdict
 
 
@@ -23,10 +24,35 @@ headers = [('Accept-Ranges', 'bytes'),
 
 
 def application(environment, start_response):
+
     path_parts = environment['REQUEST_URI'].split('/')
-    start_response('200 OK', headers + [('Content-Type', mime_map[splitext(path_parts[-1])[1]])])
-    for chunk in dash_proxy.handle_request(environment['HTTP_HOST'], path_parts[1:], None, environment['VOD_CONF_DIR'],
-                                           environment['CONTENT_ROOT'], time(), None, environment.get('HTTPS', 0)):
+    ext = splitext(path_parts[-1])[1]
+    headers.append(('Content-Type', mime_map[ext]))
+
+    host_name = environment['HTTP_HOST']
+    url_parts = path_parts[1:]
+    args = None
+    vod_conf_dir = environment['VOD_CONF_DIR']
+    content_dir = environment['CONTENT_ROOT']
+    now = time()
+    req = None
+    is_https = environment.get('HTTPS', 0)
+
+    first_chunk = True
+    for chunk in handle_request(host_name, url_parts, args, vod_conf_dir, content_dir, now, req, is_https):
+        ok = True
+        if isinstance(chunk, dict):
+            ok, chunk = chunk['ok'], chunk['pl']
+        if not isinstance(chunk,str):
+            raise TypeError('sequence of byte string values expected for chunk: %s' % str(chunk)[:100])
+        if first_chunk:
+            first_chunk = False
+            if ok:
+                start_response('200 OK', headers)
+            else:
+                print chunk
+                start_response('404 Not Found', headers)
+                return
         yield chunk
 
 

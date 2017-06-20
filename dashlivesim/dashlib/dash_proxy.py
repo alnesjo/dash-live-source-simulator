@@ -284,12 +284,11 @@ def insert_asset_identifier(response, start_pos_period):
 
 
 def simulate_continuous_production(segment, start_time, chunk_duration):
-    from sys import stderr
     from time import time, sleep
     for i, chunk in enumerate(segment, start=1):
         time_until_available = (start_time + i * chunk_duration) - time()
         if time_until_available > 0:
-            print >> stderr, 'Waiting for %d ms before sending chunk.' % (1000*time_until_available)
+            print 'Waiting for %d ms before sending chunk.' % (1000*time_until_available)
             sleep(time_until_available)
         yield chunk
 
@@ -492,11 +491,12 @@ class DashProvider(object):
         seg_ast = seg_time + seg_dur
 
         if cfg.availability_time_offset_in_s != -1:
-            if now_float < seg_ast - cfg.availability_time_offset_in_s:
-                yield self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - now_float))
+            adjusted_ast = seg_ast - cfg.availability_time_offset_in_s
+            if now_float < adjusted_ast:
+                yield self.error_response("Request for %s was %.1fs too early" % (seg_name, seg_ast - cfg.availability_time_offset_in_s - now_float))
                 return
-            if now_float > seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
-                diff = now_float - (seg_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
+            if now_float > adjusted_ast + seg_dur + cfg.timeshift_buffer_depth_in_s:
+                diff = now_float - (adjusted_ast + seg_dur + cfg.timeshift_buffer_depth_in_s)
                 yield self.error_response("Request for %s was %.1fs too late" % (seg_name, diff))
                 return
 
