@@ -21,15 +21,15 @@ def decode_fragment(data):
 
     t0, t1 = base_media_decode_time, base_media_decode_time
     begin, end = 0, 0
-    for i in range(trun.sample_count):
-        entry = trun.sample_entry(i)
-        begin, end = end, end + entry['size']
-        data = root.raw_data[base_data_offset+data_offset:][begin:end]
-        duration = entry['duration']
-        t0, t1 = t1, t1 + duration
+    for entry in map(trun.sample_entry, range(trun.sample_count)):
+        duration = entry['duration'] if trun.has_sample_duration else tfhd.default_sample_duration
+        size = entry['size'] if trun.has_sample_size else tfhd.default_sample_size
+        flags = int(entry['flags'], 0) if trun.has_sample_flags else tfhd.default_sample_flags
         time_offset = entry['time_offset'] if trun.has_sample_composition_time_offset else 0
-        sync = int(entry['flags'],0) & 0x2000000
-        yield Sample(data, t0, duration, sync, time_offset)
+        begin, end = end, end + size
+        data = root.raw_data[base_data_offset+data_offset:][begin:end]
+        t0, t1 = t1, t1 + duration
+        yield Sample(data, t0, duration, flags & 0x2000000, time_offset)
 
 
 def partition(samples, duration):
