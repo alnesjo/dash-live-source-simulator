@@ -283,12 +283,14 @@ def insert_asset_identifier(response, start_pos_period):
     return response
 
 
-def simulate_continuous_production(segment, start_time, chunk_duration):
+def simulate_continuous_production(now_float, segment, start_time, chunk_duration):
     from time import time, sleep
+    start = time()
     for i, chunk in enumerate(segment, start=1):
-        time_until_available = (start_time + i * chunk_duration) - time()
+        chunk_availability_time = (start_time + i * chunk_duration)
+        time_until_available =  chunk_availability_time - (now_float + time() - start)
         if time_until_available > 0:
-            print 'Waiting for %d ms before sending chunk.' % (1000*time_until_available)
+            print 'Chunk %d was delayed by %dms.' % (i, 1000*time_until_available)
             sleep(time_until_available)
         yield chunk
 
@@ -522,7 +524,7 @@ class DashProvider(object):
             seg2 = self.filter_media_segment(cfg, cfg.reps[1], rel_path2, vod_nr, seg_nr, seg_ext,
                                              offset_at_loop_start, lmsg)
             segment = (segmentmuxer.MultiplexMediaSegments(data1=chu1, data2=chu2).mux_on_sample_level() for chu1, chu2 in zip(seg1, seg2))
-        for chunk in simulate_continuous_production(segment, seg_time, cfg.chunk_duration_in_s or seg_dur):
+        for chunk in simulate_continuous_production(now_float, segment, seg_time, cfg.chunk_duration_in_s or seg_dur):
             yield chunk
 
     # pylint: disable=too-many-arguments
