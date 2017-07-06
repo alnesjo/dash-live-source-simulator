@@ -4,11 +4,7 @@ from repack_poc.ewmedia.esf.boxes import *
 import pdb
 
 
-def decode_fragment(data):
-    """
-    :param data: CMAF Fragment 
-    :return: Sample generator
-    """
+def decode_fragment(data, trex):
     root = mp4(data)
     moof = root.find('moof')
     tfhd = moof.find('traf.tfhd')
@@ -22,9 +18,15 @@ def decode_fragment(data):
     t0, t1 = base_media_decode_time, base_media_decode_time
     begin, end = 0, 0
     for entry in map(trun.sample_entry, range(trun.sample_count)):
-        duration = entry['duration'] if trun.has_sample_duration else tfhd.default_sample_duration
-        size = entry['size'] if trun.has_sample_size else tfhd.default_sample_size
-        flags = int(entry['flags'], 0) if trun.has_sample_flags else tfhd.default_sample_flags
+        duration = entry['duration'] if trun.has_sample_duration else \
+            tfhd.default_sample_duration if tfhd.has_default_sample_duration else \
+                trex.default_sample_duration
+        size = entry['size'] if trun.has_sample_size else \
+            tfhd.default_sample_size if tfhd.has_default_sample_size else \
+                trex.default_sample_size
+        flags = int(entry['flags'], 0) if trun.has_sample_flags else \
+            tfhd.default_sample_flags if tfhd.has_default_sample_flags else \
+                trex.default_sample_flags
         time_offset = entry['time_offset'] if trun.has_sample_composition_time_offset else 0
         begin, end = end, end + size
         data = root.raw_data[base_data_offset+data_offset:][begin:end]
@@ -52,19 +54,20 @@ def encode_chunked(seqno, track_id, samples, duration):
         yield create_mdat(chunk_samples)
 
 
-def chunk(data, duration):
-    """
-    :param data: CMAF Fragment
-    :param duration: Target chunk duration
-    :return: Chunked CMAF Segment
-    """
+def chunk(data, duration, init=None):
     root = mp4(data)
     mfhd = root.find('moof.mfhd')
     tfhd = root.find('moof.traf.tfhd')
+    trex = type('trex_box', (object,), {'default_sample_duration': 512,
+                                        'default_sample_size': 0,
+                                        'default_sample_flags': 0x10000})
 
     seqno = mfhd.seqno
     track_id = tfhd.track_id
 
-    boxes = encode_chunked(seqno, track_id, decode_fragment(data), duration)
+    boxes = encode_chunked(seqno,
+                           track_id,
+                           decode_fragment(data, trex),
+                           duration)
     for moof, mdat in zip(boxes, boxes):
         yield moof.serialize()+mdat.serialize()
