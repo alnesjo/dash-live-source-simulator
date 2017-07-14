@@ -1,4 +1,4 @@
-from repack_poc.ewmedia.mp4 import mp4
+from repack_poc.ewmedia.mp4 import mp4, trex_box
 from repack_poc.ewmedia.esf.boxes import *
 
 import pdb
@@ -54,13 +54,21 @@ def encode_chunked(seqno, track_id, samples, duration):
         yield create_mdat(chunk_samples)
 
 
-def chunk(data, duration, init=None):
+def chunk(data, duration, init_data=None):
     root = mp4(data)
     mfhd = root.find('moof.mfhd')
     tfhd = root.find('moof.traf.tfhd')
-    trex = type('trex_box', (object,), {'default_sample_duration': 512,
-                                        'default_sample_size': 0,
-                                        'default_sample_flags': 0x10000})
+    # TODO! Add init_data to call and parse trex from moov!
+    trex = trex_box('\x00\x00\x00\x20'  # size
+                    'trex'              # type
+                    '\x00'              # version
+                    '\x00\x00\x00'      # flags
+                    '\x00\x00\x00\x01'  # track_ID
+                    '\x00\x00\x00\x01'  # default_sample_description_index
+                    '\x00\x00\x02\x00'  # default_sample_duration
+                    '\x00\x00\x00\x00'  # default_sample_size
+                    '\x00\x01\x00\x00', # default_sample_flags
+                    'trex', 0x20, 0x0)
 
     seqno = mfhd.seqno
     track_id = tfhd.track_id
