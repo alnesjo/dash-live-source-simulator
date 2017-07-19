@@ -24,7 +24,7 @@ def decode_fragment(data, trex):
         size = entry['size'] if trun.has_sample_size else \
             tfhd.default_sample_size if tfhd.has_default_sample_size else \
                 trex.default_sample_size
-        flags = int(entry['flags'], 0) if trun.has_sample_flags else \
+        flags = entry['flags'] if trun.has_sample_flags else \
             tfhd.default_sample_flags if tfhd.has_default_sample_flags else \
                 trex.default_sample_flags
         time_offset = entry['time_offset'] if trun.has_sample_composition_time_offset else 0
