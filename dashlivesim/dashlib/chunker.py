@@ -1,8 +1,6 @@
 from repack_poc.ewmedia.mp4 import mp4, trex_box
 from repack_poc.ewmedia.esf.boxes import *
 
-import pdb
-
 
 def decode_fragment(data, trex):
     root = mp4(data)
@@ -79,3 +77,22 @@ def chunk(data, duration, init_data=None):
                            duration)
     for moof, mdat in zip(boxes, boxes):
         yield moof.serialize()+mdat.serialize()
+
+
+if __name__ == '__main__':
+    from argparse import ArgumentParser
+    from sys import stdout
+
+    parser = ArgumentParser(description='Repackage segment to chunked segment.')
+    parser.add_argument('duration', type=int, nargs=1, help='Chunk duration in track timescale.')
+    parser.add_argument('init', type=str, nargs=1, help='Initialization segment containing track header.')
+    parser.add_argument('media', type=str, nargs=1, help='Media segment to repackage.')
+
+    args = parser.parse_args()
+    duration = args.duration[0]
+    init = open(args.init[0], 'rb').read()
+    media = open(args.media[0], 'rb').read()
+
+    for chunk_data in chunk(media, duration, init_data=init):
+        stdout.write(chunk_data)
+        stdout.flush()
